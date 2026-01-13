@@ -3,7 +3,7 @@ using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
 using MGAO.Core.Interfaces;
 
-namespace MGAO.Google;
+namespace MGAO.GoogleCalendar;
 
 public class GoogleCalendarClient : ICalendarProvider
 {

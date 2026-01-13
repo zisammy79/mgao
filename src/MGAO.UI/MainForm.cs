@@ -1,6 +1,6 @@
 using MGAO.Core.Interfaces;
 using MGAO.Core.Services;
-using MGAO.Google;
+using MGAO.GoogleCalendar;
 using MGAO.Outlook;
 
 namespace MGAO.UI;

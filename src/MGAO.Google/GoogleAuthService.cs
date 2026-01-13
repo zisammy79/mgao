@@ -5,7 +5,7 @@ using Google.Apis.Calendar.v3;
 using Google.Apis.Util.Store;
 using MGAO.Core.Interfaces;
 
-namespace MGAO.Google;
+namespace MGAO.GoogleCalendar;
 
 public class GoogleAuthService
 {

@@ -3,12 +3,13 @@ using System.Text;
 using Microsoft.Office.Interop.Outlook;
 using MGAO.Core.Interfaces;
 using OlItemType = Microsoft.Office.Interop.Outlook.OlItemType;
+using OutlookApp = Microsoft.Office.Interop.Outlook.Application;
 
 namespace MGAO.Outlook;
 
 public class OutlookCalendarBridge : ICalendarProvider, IDisposable
 {
-    private Application? _outlook;
+    private OutlookApp? _outlook;
     private NameSpace? _namespace;
     private readonly Dictionary<string, MAPIFolder> _folderCache = new();
 
@@ -19,7 +20,7 @@ public class OutlookCalendarBridge : ICalendarProvider, IDisposable
 
     public void Initialize()
     {
-        _outlook = new Application();
+        _outlook = new OutlookApp();
         _namespace = _outlook.GetNamespace("MAPI");
     }
 
