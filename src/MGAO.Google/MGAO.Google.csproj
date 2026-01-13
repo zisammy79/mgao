@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.68.0.3411" />
-    <PackageReference Include="Google.Apis.Auth" Version="1.68.0" />
-    <PackageReference Include="Google.Apis.Oauth2.v2" Version="1.68.0.3411" />
+    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.57.0.2635" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.57.0" />
+    <PackageReference Include="Google.Apis.Oauth2.v2" Version="1.57.0.2515" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MGAO.Core\MGAO.Core.csproj" />
