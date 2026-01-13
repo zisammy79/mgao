@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MGAO.Core\MGAO.Core.csproj" />
+    <ProjectReference Include="..\MGAO.Google\MGAO.Google.csproj" />
+    <ProjectReference Include="..\MGAO.Outlook\MGAO.Outlook.csproj" />
+  </ItemGroup>
+</Project>
