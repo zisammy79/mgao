@@ -45,10 +45,13 @@ public class GoogleAuthService
 
             credential = new UserCredential(flow, accountId, token);
 
-            if (token.IsStale)
+            // Refresh if token is expired or about to expire (within 5 minutes)
+            if (credential.Token.IsStale || DateTime.UtcNow >= existingToken.Value.Expiry.AddMinutes(-5))
             {
-                await credential.RefreshTokenAsync(ct);
-                await SaveTokenAsync(accountId, credential.Token);
+                if (await credential.RefreshTokenAsync(ct))
+                {
+                    await SaveTokenAsync(accountId, credential.Token);
+                }
             }
         }
         else
@@ -69,8 +72,9 @@ public class GoogleAuthService
     {
         var service = new Google.Apis.Oauth2.v2.Oauth2Service(
             new Google.Apis.Services.BaseClientService.Initializer { HttpClientInitializer = credential });
-        var userInfo = await service.Userinfo.Get().ExecuteAsync();
-        return userInfo.Email;
+        var request = service.Userinfo.Get();
+        var userInfo = await request.ExecuteAsync();
+        return userInfo.Email ?? throw new InvalidOperationException("Could not retrieve email from Google account");
     }
 
     private async Task SaveTokenAsync(string accountId, TokenResponse token)
