@@ -9,6 +9,9 @@ env:
   DOTNET_VERSION: '6.0.x'
   SOLUTION_PATH: src/MGAO.sln
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Build and Release
