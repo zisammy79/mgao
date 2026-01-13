@@ -1,0 +1,83 @@
+name: Build MGAO
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '6.0.x'
+  SOLUTION_PATH: src/MGAO.sln
+
+jobs:
+  build:
+    name: Build Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      - name: Build solution
+        run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MGAO-Release
+          path: |
+            src/MGAO.UI/bin/Release/net6.0-windows/
+          retention-days: 14
+
+  build-core-only:
+    name: Build Core (Cross-platform validation)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build MGAO.Core only
+        run: |
+          # Build only the Core project (no Windows dependencies)
+          dotnet build src/MGAO.Core/MGAO.Core.csproj --configuration Release
+        continue-on-error: true
+
+  # Future: Add test job when unit tests are implemented
+  # test:
+  #   name: Run Tests
+  #   runs-on: windows-latest
+  #   needs: build
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: ${{ env.DOTNET_VERSION }}
+  #     - run: dotnet test src/MGAO.Core.Tests --configuration Release --logger trx
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: test-results
+  #         path: '**/*.trx'
