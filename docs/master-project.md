@@ -80,8 +80,14 @@ Windows tool enabling two-way Google Calendar sync for multiple Google Workspace
 
 ## 10) Open Issues / Blockers
 - ~~**BLOCKER**: Calendar selection UI missing post-OAuth~~ (FIXED by code-fixer)
+- ~~**CRITICAL**: COM object memory leaks in OutlookCalendarBridge~~ (FIXED)
+- ~~**CRITICAL**: Improper COM disposal~~ (FIXED)
+- ~~**HIGH**: Thread-unsafe Dictionary in GoogleCalendarClient~~ (FIXED)
+- ~~**HIGH**: No token decryption error handling~~ (FIXED)
+- ~~**HIGH**: Swallowed exceptions in GetFolderByEntryId~~ (FIXED)
+- ~~**HIGH**: SQLite connection threading issues~~ (FIXED)
 - **MEDIUM**: Log filtering not implemented
 - **LOW**: Performance optimization for FindAppointmentByGoogleId
 
 ---
-**CHECKPOINT**: Phase 11 COMPLETE. All 22 agents executed. MVP scaffold ready for build and test.
+**CHECKPOINT**: Phase 11 COMPLETE + Code Quality Fixes. All 22 agents executed. Critical/High issues fixed. CI build triggered for verification.
