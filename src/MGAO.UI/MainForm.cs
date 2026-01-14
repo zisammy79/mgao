@@ -1,3 +1,4 @@
+using MGAO.Core;
 using MGAO.Core.Interfaces;
 using MGAO.Core.Services;
 using MGAO.GoogleCalendar;
@@ -10,11 +11,11 @@ namespace MGAO.UI;
 public partial class MainForm : Form
 {
     private readonly ITokenStore _tokenStore;
-    private readonly GoogleAuthService? _authService;
-    private readonly GoogleCalendarClient? _googleClient;
+    private readonly GoogleAuthService _authService;
+    private readonly GoogleCalendarClient _googleClient;
     private readonly OutlookCalendarBridge _outlookBridge;
     private readonly StateStore _stateStore;
-    private ISyncEngine? _syncEngine;
+    private readonly ISyncEngine _syncEngine;
 
     private TabControl _tabs = null!;
     private ListView _accountsList = null!;
@@ -30,15 +31,10 @@ public partial class MainForm : Form
         _stateStore = new StateStore();
         _outlookBridge = new OutlookCalendarBridge();
 
-        var clientId = Environment.GetEnvironmentVariable("MGAO_CLIENT_ID") ?? "";
-        var clientSecret = Environment.GetEnvironmentVariable("MGAO_CLIENT_SECRET") ?? "";
-
-        if (!string.IsNullOrEmpty(clientId))
-        {
-            _authService = new GoogleAuthService(clientId, clientSecret, _tokenStore);
-            _googleClient = new GoogleCalendarClient(_authService);
-            _syncEngine = new SyncEngine(_googleClient, _outlookBridge, _stateStore);
-        }
+        // GWSMO-parity: Use embedded credentials - no Google Cloud setup required for users
+        _authService = new GoogleAuthService(AppCredentials.ClientId, AppCredentials.ClientSecret, _tokenStore);
+        _googleClient = new GoogleCalendarClient(_authService);
+        _syncEngine = new SyncEngine(_googleClient, _outlookBridge, _stateStore);
 
         InitializeComponents();
         LoadAccounts();
@@ -116,10 +112,7 @@ public partial class MainForm : Form
 
         toolbar.Dock = DockStyle.Top;
 
-        if (_syncEngine != null)
-        {
-            _syncEngine.ProgressChanged += OnSyncProgress;
-        }
+        _syncEngine.ProgressChanged += OnSyncProgress;
     }
 
     private async void LoadAccounts()
@@ -134,33 +127,26 @@ public partial class MainForm : Form
             item.SubItems.Add("Never");
 
             // Check account auth status (GWSMO-parity: show actionable status)
-            if (_authService != null)
+            var authResult = await _authService.TryAuthorizeSilentAsync(accountId);
+            var status = authResult.Status switch
             {
-                var authResult = await _authService.TryAuthorizeSilentAsync(accountId);
-                var status = authResult.Status switch
-                {
-                    AuthStatus.Success => "Ready",
-                    AuthStatus.NeedsReauth => "Needs Reauth",
-                    AuthStatus.Blocked => "BLOCKED",
-                    _ => "Error"
-                };
-                item.SubItems.Add(status);
+                AuthStatus.Success => "Ready",
+                AuthStatus.NeedsReauth => "Needs Reauth",
+                AuthStatus.Blocked => "BLOCKED",
+                _ => "Error"
+            };
+            item.SubItems.Add(status);
 
-                // Color code blocked/error accounts
-                if (authResult.Status == AuthStatus.Blocked)
-                {
-                    item.ForeColor = System.Drawing.Color.Red;
-                    item.ToolTipText = authResult.ErrorMessage;
-                }
-                else if (authResult.Status == AuthStatus.NeedsReauth)
-                {
-                    item.ForeColor = System.Drawing.Color.Orange;
-                    item.ToolTipText = authResult.ErrorMessage;
-                }
-            }
-            else
+            // Color code blocked/error accounts
+            if (authResult.Status == AuthStatus.Blocked)
             {
-                item.SubItems.Add("No Auth");
+                item.ForeColor = System.Drawing.Color.Red;
+                item.ToolTipText = authResult.ErrorMessage;
+            }
+            else if (authResult.Status == AuthStatus.NeedsReauth)
+            {
+                item.ForeColor = System.Drawing.Color.Orange;
+                item.ToolTipText = authResult.ErrorMessage;
             }
 
             _accountsList.Items.Add(item);
@@ -169,13 +155,6 @@ public partial class MainForm : Form
 
     private async void OnAddAccount(object? sender, EventArgs e)
     {
-        if (_authService == null)
-        {
-            MessageBox.Show("Please set MGAO_CLIENT_ID and MGAO_CLIENT_SECRET environment variables.",
-                "Configuration Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
         try
         {
             _statusLabel.Text = "Authenticating via browser...";
@@ -208,7 +187,7 @@ public partial class MainForm : Form
 
             // Fetch calendars and show selection dialog
             _statusLabel.Text = "Fetching calendars...";
-            var calendars = await _googleClient!.GetCalendarsAsync(email);
+            var calendars = await _googleClient.GetCalendarsAsync(email);
 
             using var selectionForm = new CalendarSelectionForm(calendars);
             if (selectionForm.ShowDialog(this) == DialogResult.OK)
@@ -245,13 +224,6 @@ public partial class MainForm : Form
         {
             MessageBox.Show("Please select an account to re-authenticate.", "No Selection",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        if (_authService == null)
-        {
-            MessageBox.Show("Please set MGAO_CLIENT_ID and MGAO_CLIENT_SECRET environment variables.",
-                "Configuration Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
@@ -320,8 +292,6 @@ public partial class MainForm : Form
 
     private async void OnSyncNow(object? sender, EventArgs e)
     {
-        if (_syncEngine == null) return;
-
         _statusLabel.Text = "Syncing...";
         _progressBar.Style = ProgressBarStyle.Marquee;
 

@@ -19,16 +19,18 @@ A Windows tool enabling **two-way Google Calendar sync** for multiple Google Wor
 - Windows 10/11
 - [.NET 6.0 Runtime](https://dotnet.microsoft.com/download/dotnet/6.0) (or SDK for building)
 - Microsoft Outlook (classic desktop version)
-- Google Workspace account(s) with Calendar API access
+- Google Workspace account(s)
 
 ## Installation
 
-### From Release
+### From Release (Recommended)
 
 1. Go to the [Releases](https://github.com/zisammy79/mgao/releases) page
-2. Download the latest `MGAO-vX.Y.Z-win-x64.zip` (e.g., `MGAO-v1.0.0-win-x64.zip`)
+2. Download the latest `MGAO-vX.Y.Z-win-x64.zip`
 3. Extract the ZIP to a folder of your choice
 4. Run `MGAO.UI.exe`
+
+**No Google Cloud setup required** - MGAO works out of the box like GWSMO.
 
 ### From Source
 
@@ -40,39 +42,21 @@ dotnet build src\MGAO.sln --configuration Release
 
 The built executable will be at `src\MGAO.UI\bin\Release\net6.0-windows\MGAO.UI.exe`
 
-## Configuration
-
-### Google Cloud Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable the **Google Calendar API**
-4. Go to **APIs & Services → Credentials**
-5. Create **OAuth 2.0 Client ID** (Desktop application)
-6. Download or copy the Client ID and Client Secret
-
-### Environment Variables
-
-Set your Google OAuth credentials before running:
-
-```cmd
-set MGAO_CLIENT_ID=your-client-id.apps.googleusercontent.com
-set MGAO_CLIENT_SECRET=your-client-secret
-```
-
-Or in PowerShell:
-
-```powershell
-$env:MGAO_CLIENT_ID = "your-client-id.apps.googleusercontent.com"
-$env:MGAO_CLIENT_SECRET = "your-client-secret"
-```
-
 ## Usage
 
-1. **Launch MGAO** with environment variables set
-2. **Add Account**: Click "Add Account" → Complete Google OAuth → Select calendars to sync
-3. **Sync**: Click "Sync Now" or wait for automatic sync
+1. **Launch MGAO**
+2. **Add Account**: Click "Add Account" → Sign in with Google → Select calendars to sync
+3. **Sync**: Click "Sync Now" to synchronize
 4. **View Logs**: Check the Logs tab for sync history and any conflicts
+
+### First-Time Sign-In
+
+When signing in, you may see an "unverified app" warning. This is normal for apps in testing mode:
+1. Click "Advanced"
+2. Click "Go to MGAO (unsafe)"
+3. Grant calendar permissions
+
+This warning appears because the app is in Google's testing phase (limited to 100 users).
 
 ### Sync Behavior
 
@@ -134,13 +118,14 @@ mgao/
 
 ## Troubleshooting
 
-### "Configuration Required" error
-Ensure `MGAO_CLIENT_ID` and `MGAO_CLIENT_SECRET` environment variables are set.
+### "Unverified app" warning
+This is expected - click "Advanced" → "Go to MGAO (unsafe)" to continue. The app is in testing mode.
 
-### OAuth fails
-1. Verify Google Calendar API is enabled in Cloud Console
-2. Check OAuth consent screen is configured
-3. Ensure redirect URI includes `http://localhost`
+### "Access blocked" error
+Your Google Workspace admin may have restricted third-party app access. Contact your admin to allow MGAO.
+
+### Account shows "Needs Reauth"
+Click the account and press "Reauth" to re-authenticate with Google.
 
 ### Outlook not detected
 1. Ensure classic Outlook is installed (not new Outlook)
@@ -148,6 +133,15 @@ Ensure `MGAO_CLIENT_ID` and `MGAO_CLIENT_SECRET` environment variables are set.
 
 ### Sync conflicts
 Check the Logs tab for conflict details. The latest-modified version is kept; the other is logged.
+
+## Advanced Configuration
+
+For custom deployments, you can override the embedded OAuth credentials:
+
+```cmd
+set MGAO_CLIENT_ID=your-custom-client-id
+set MGAO_CLIENT_SECRET=your-custom-client-secret
+```
 
 ## Contributing
 
