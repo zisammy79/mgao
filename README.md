@@ -7,7 +7,7 @@ A Windows tool enabling **two-way Google Calendar sync** for multiple Google Wor
 ## Features
 
 - **Multi-account support**: Connect multiple Google Workspace accounts
-- **Two-way sync**: Changes sync bidirectionally between Google Calendar and Outlook
+- **Two-way sync**: Bidirectional updates for paired events; Google → Outlook for new events
 - **Calendar selection**: Choose which calendars to sync per account
 - **Incremental sync**: Uses Google sync tokens for efficient updates
 - **Secure storage**: Tokens encrypted with Windows DPAPI
@@ -76,9 +76,9 @@ $env:MGAO_CLIENT_SECRET = "your-client-secret"
 | Scenario | Behavior |
 |----------|----------|
 | New event in Google | Created in Outlook |
-| New event in Outlook | Created in Google |
+| New event in Outlook | Not synced (Outlook → Google creation not yet implemented) |
 | Event modified in both | Latest modification wins |
-| Event deleted | Deleted on both sides |
+| Event deleted | Not synced (deletion sync not yet implemented) |
 | Sync window | -30 days to +180 days |
 
 ## Project Structure
