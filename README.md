@@ -2,7 +2,7 @@
 
 A Windows tool enabling **two-way Google Calendar sync** for multiple Google Workspace accounts inside a single classic Outlook profile.
 
-![Build Status](https://github.com/YOUR_USERNAME/mgao/actions/workflows/build.yml/badge.svg)
+[![Build Status](https://github.com/zisammy79/mgao/actions/workflows/build.yml/badge.svg)](https://github.com/zisammy79/mgao/actions/workflows/build.yml)
 
 ## Features
 
@@ -25,17 +25,20 @@ A Windows tool enabling **two-way Google Calendar sync** for multiple Google Wor
 
 ### From Release
 
-1. Download the latest release from [Releases](https://github.com/YOUR_USERNAME/mgao/releases)
-2. Extract `MGAO-vX.X.X-win-x64.zip`
-3. Run `MGAO.UI.exe`
+1. Go to the [Releases](https://github.com/zisammy79/mgao/releases) page
+2. Download the latest `MGAO-vX.Y.Z-win-x64.zip` (e.g., `MGAO-v1.0.0-win-x64.zip`)
+3. Extract the ZIP to a folder of your choice
+4. Run `MGAO.UI.exe`
 
 ### From Source
 
 ```cmd
-git clone https://github.com/YOUR_USERNAME/mgao.git
+git clone https://github.com/zisammy79/mgao.git
 cd mgao
 dotnet build src\MGAO.sln --configuration Release
 ```
+
+The built executable will be at `src\MGAO.UI\bin\Release\net6.0-windows\MGAO.UI.exe`
 
 ## Configuration
 
@@ -161,4 +164,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - [Google.Apis.Calendar.v3](https://www.nuget.org/packages/Google.Apis.Calendar.v3/) - Google Calendar API client
-- [Microsoft.Office.Interop.Outlook](https://docs.microsoft.com/en-us/visualstudio/vsto/office-primary-interop-assemblies) - Outlook COM interop
+- [Microsoft.Office.Interop.Outlook](https://learn.microsoft.com/en-us/visualstudio/vsto/office-primary-interop-assemblies) - Outlook COM interop
