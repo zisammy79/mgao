@@ -32,8 +32,12 @@ public class GoogleAuthService
     private readonly string _clientSecret;
     private readonly ITokenStore _tokenStore;
 
-    // Request offline access to obtain refresh tokens (GWSMO-parity requirement)
-    private readonly string[] _scopes = { CalendarService.Scope.Calendar };
+    // Scopes: Calendar (full access) + email (to identify the account)
+    private readonly string[] _scopes =
+    {
+        CalendarService.Scope.Calendar,
+        "https://www.googleapis.com/auth/userinfo.email"
+    };
 
     public GoogleAuthService(string clientId, string clientSecret, ITokenStore tokenStore)
     {
