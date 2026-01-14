@@ -185,6 +185,9 @@ public partial class MainForm : Form
 
             await _tokenStore.DeleteTokenAsync(tempId);
 
+            // Register the credential we already have (avoids re-auth from stored tokens)
+            _googleClient.RegisterCredential(email, credential);
+
             // Fetch calendars and show selection dialog
             _statusLabel.Text = "Fetching calendars...";
             var calendars = await _googleClient.GetCalendarsAsync(email);

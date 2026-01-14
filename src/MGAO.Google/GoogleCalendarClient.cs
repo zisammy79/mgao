@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Google.Apis.Auth.OAuth2;
 using Google.Apis.Calendar.v3;
 using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
@@ -15,6 +16,20 @@ public class GoogleCalendarClient : ICalendarProvider
     public GoogleCalendarClient(GoogleAuthService authService)
     {
         _authService = authService;
+    }
+
+    /// <summary>
+    /// Register an already-authenticated credential for an account.
+    /// Use this when you already have a valid credential (e.g., from interactive OAuth).
+    /// </summary>
+    public void RegisterCredential(string accountId, UserCredential credential)
+    {
+        var service = new CalendarService(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = "MGAO"
+        });
+        _services[accountId] = service;
     }
 
     private async Task<CalendarService> GetServiceAsync(string accountId)
