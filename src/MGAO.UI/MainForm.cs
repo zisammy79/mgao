@@ -3,6 +3,8 @@ using MGAO.Core.Services;
 using MGAO.GoogleCalendar;
 using MGAO.Outlook;
 
+#pragma warning disable CA1416 // Platform compatibility (Windows-only app)
+
 namespace MGAO.UI;
 
 public partial class MainForm : Form
@@ -50,6 +52,7 @@ public partial class MainForm : Form
 
         var toolbar = new ToolStrip();
         toolbar.Items.Add(new ToolStripButton("Add Account", null, OnAddAccount));
+        toolbar.Items.Add(new ToolStripButton("Reauth", null, OnReauthAccount));
         toolbar.Items.Add(new ToolStripButton("Remove", null, OnRemoveAccount));
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(new ToolStripButton("Sync Now", null, OnSyncNow));
@@ -63,7 +66,8 @@ public partial class MainForm : Form
         {
             Dock = DockStyle.Fill,
             View = View.Details,
-            FullRowSelect = true
+            FullRowSelect = true,
+            ShowItemToolTips = true
         };
         _accountsList.Columns.Add("Email", 200);
         _accountsList.Columns.Add("Calendars", 80);
@@ -128,7 +132,37 @@ public partial class MainForm : Form
             var item = new ListViewItem(accountId);
             item.SubItems.Add("-");
             item.SubItems.Add("Never");
-            item.SubItems.Add("Ready");
+
+            // Check account auth status (GWSMO-parity: show actionable status)
+            if (_authService != null)
+            {
+                var authResult = await _authService.TryAuthorizeSilentAsync(accountId);
+                var status = authResult.Status switch
+                {
+                    AuthStatus.Success => "Ready",
+                    AuthStatus.NeedsReauth => "Needs Reauth",
+                    AuthStatus.Blocked => "BLOCKED",
+                    _ => "Error"
+                };
+                item.SubItems.Add(status);
+
+                // Color code blocked/error accounts
+                if (authResult.Status == AuthStatus.Blocked)
+                {
+                    item.ForeColor = System.Drawing.Color.Red;
+                    item.ToolTipText = authResult.ErrorMessage;
+                }
+                else if (authResult.Status == AuthStatus.NeedsReauth)
+                {
+                    item.ForeColor = System.Drawing.Color.Orange;
+                    item.ToolTipText = authResult.ErrorMessage;
+                }
+            }
+            else
+            {
+                item.SubItems.Add("No Auth");
+            }
+
             _accountsList.Items.Add(item);
         }
     }
@@ -144,11 +178,27 @@ public partial class MainForm : Form
 
         try
         {
-            _statusLabel.Text = "Authenticating...";
+            _statusLabel.Text = "Authenticating via browser...";
+
+            // Use a temp ID for initial auth, then re-save with actual email
             var tempId = Guid.NewGuid().ToString();
-            var credential = await _authService.AuthorizeAsync(tempId);
+
+            // GWSMO-parity: Interactive OAuth via system browser (no embedded browser)
+            var credential = await _authService.AuthorizeInteractiveAsync(tempId);
             var email = await _authService.GetAccountEmailAsync(credential);
 
+            // Check if this account already exists
+            var existingAccounts = await _tokenStore.GetAllAccountIdsAsync();
+            if (existingAccounts.Contains(email))
+            {
+                await _tokenStore.DeleteTokenAsync(tempId);
+                MessageBox.Show($"Account {email} is already configured.\nUse 'Reauth' to refresh credentials.",
+                    "Account Exists", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _statusLabel.Text = "Account already exists";
+                return;
+            }
+
+            // Save with email as key
             await _tokenStore.SaveTokenAsync(email,
                 credential.Token.AccessToken,
                 credential.Token.RefreshToken,
@@ -186,6 +236,69 @@ public partial class MainForm : Form
             MessageBox.Show($"Authentication failed: {ex.Message}", "Error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             _statusLabel.Text = "Authentication failed";
+        }
+    }
+
+    private async void OnReauthAccount(object? sender, EventArgs e)
+    {
+        if (_accountsList.SelectedItems.Count == 0)
+        {
+            MessageBox.Show("Please select an account to re-authenticate.", "No Selection",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (_authService == null)
+        {
+            MessageBox.Show("Please set MGAO_CLIENT_ID and MGAO_CLIENT_SECRET environment variables.",
+                "Configuration Required", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var accountId = _accountsList.SelectedItems[0].Text;
+        var status = _accountsList.SelectedItems[0].SubItems[3].Text;
+
+        if (status == "BLOCKED")
+        {
+            MessageBox.Show(
+                "This account is blocked by administrator policy.\n\n" +
+                "Contact your Google Workspace administrator to:\n" +
+                "• Allow third-party app access\n" +
+                "• Enable Calendar API for your organization",
+                "Account Blocked", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        try
+        {
+            _statusLabel.Text = $"Re-authenticating {accountId}...";
+
+            // Delete old tokens first
+            await _tokenStore.DeleteTokenAsync(accountId);
+
+            // Perform interactive auth (opens browser)
+            var credential = await _authService.AuthorizeInteractiveAsync(accountId);
+            var email = await _authService.GetAccountEmailAsync(credential);
+
+            // Save with the email as the key (in case user signed in with different account)
+            if (email != accountId)
+            {
+                await _tokenStore.SaveTokenAsync(email,
+                    credential.Token.AccessToken,
+                    credential.Token.RefreshToken,
+                    DateTime.UtcNow.AddSeconds(credential.Token.ExpiresInSeconds ?? 3600));
+            }
+
+            LoadAccounts();
+            AddLog(accountId, "Reauth Account", "Success");
+            _statusLabel.Text = $"Re-authenticated: {email}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Re-authentication failed: {ex.Message}", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            _statusLabel.Text = "Re-authentication failed";
+            AddLog(accountId, "Reauth Account", $"Failed: {ex.Message}");
         }
     }
 
