@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Google.Apis.Calendar.v3;
 using Google.Apis.Calendar.v3.Data;
 using Google.Apis.Services;
@@ -8,7 +9,8 @@ namespace MGAO.GoogleCalendar;
 public class GoogleCalendarClient : ICalendarProvider
 {
     private readonly GoogleAuthService _authService;
-    private readonly Dictionary<string, CalendarService> _services = new();
+    private readonly ConcurrentDictionary<string, CalendarService> _services = new();
+    private readonly SemaphoreSlim _serviceLock = new(1, 1);
 
     public GoogleCalendarClient(GoogleAuthService authService)
     {
@@ -17,8 +19,20 @@ public class GoogleCalendarClient : ICalendarProvider
 
     private async Task<CalendarService> GetServiceAsync(string accountId)
     {
-        if (!_services.TryGetValue(accountId, out var service))
+        if (_services.TryGetValue(accountId, out var service))
         {
+            return service;
+        }
+
+        await _serviceLock.WaitAsync();
+        try
+        {
+            // Double-check after acquiring lock
+            if (_services.TryGetValue(accountId, out service))
+            {
+                return service;
+            }
+
             var credential = await _authService.AuthorizeAsync(accountId);
             service = new CalendarService(new BaseClientService.Initializer
             {
@@ -26,8 +40,12 @@ public class GoogleCalendarClient : ICalendarProvider
                 ApplicationName = "MGAO"
             });
             _services[accountId] = service;
+            return service;
         }
-        return service;
+        finally
+        {
+            _serviceLock.Release();
+        }
     }
 
     public async Task<IEnumerable<CalendarInfo>> GetCalendarsAsync(string accountId)

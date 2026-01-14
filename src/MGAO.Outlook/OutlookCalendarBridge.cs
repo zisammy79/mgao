@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Office.Interop.Outlook;
@@ -33,16 +34,29 @@ public class OutlookCalendarBridge : ICalendarProvider, IDisposable
         var folderName = $"G:{calendarName}";
 
         MAPIFolder? folder = null;
-        foreach (MAPIFolder f in calendarRoot.Folders)
+        var folders = calendarRoot.Folders;
+        try
         {
-            if (f.Name == folderName)
+            foreach (MAPIFolder f in folders)
             {
-                folder = f;
-                break;
+                if (f.Name == folderName)
+                {
+                    folder = f;
+                }
+                else
+                {
+                    ReleaseCom(f);
+                }
             }
         }
+        finally
+        {
+            ReleaseCom(folders);
+            ReleaseCom(calendarRoot);
+        }
 
-        folder ??= calendarRoot.Folders.Add(folderName, OlDefaultFolders.olFolderCalendar);
+        folder ??= _namespace!.GetDefaultFolder(OlDefaultFolders.olFolderCalendar)
+            .Folders.Add(folderName, OlDefaultFolders.olFolderCalendar);
         _folderCache[key] = folder;
         return folder;
     }
@@ -51,13 +65,28 @@ public class OutlookCalendarBridge : ICalendarProvider, IDisposable
     {
         var calendars = new List<CalendarInfo>();
         var root = _namespace!.GetDefaultFolder(OlDefaultFolders.olFolderCalendar);
-
-        foreach (MAPIFolder folder in root.Folders)
+        var folders = root.Folders;
+        try
         {
-            if (folder.Name.StartsWith("G:"))
+            foreach (MAPIFolder folder in folders)
             {
-                calendars.Add(new CalendarInfo(folder.EntryID, folder.Name, accountId));
+                try
+                {
+                    if (folder.Name.StartsWith("G:"))
+                    {
+                        calendars.Add(new CalendarInfo(folder.EntryID, folder.Name, accountId));
+                    }
+                }
+                finally
+                {
+                    ReleaseCom(folder);
+                }
             }
+        }
+        finally
+        {
+            ReleaseCom(folders);
+            ReleaseCom(root);
         }
 
         return Task.FromResult<IEnumerable<CalendarInfo>>(calendars);
@@ -70,19 +99,41 @@ public class OutlookCalendarBridge : ICalendarProvider, IDisposable
         if (folder == null) return Task.FromResult(Enumerable.Empty<CalendarEvent>());
 
         var events = new List<CalendarEvent>();
-        var filter = $"[Start] >= '{start:g}' AND [End] <= '{end:g}'";
+        var filter = $"[Start] >= '{start:yyyy-MM-dd}' AND [End] <= '{end:yyyy-MM-dd}'";
 
-        var items = folder.Items;
-        items.Sort("[Start]");
-        items.IncludeRecurrences = true;
-
-        var restricted = items.Restrict(filter);
-        foreach (object item in restricted)
+        Items? items = null;
+        Items? restricted = null;
+        try
         {
-            if (item is AppointmentItem appt)
+            items = folder.Items;
+            items.Sort("[Start]");
+            items.IncludeRecurrences = true;
+            restricted = items.Restrict(filter);
+
+            foreach (object item in restricted)
             {
-                events.Add(MapToCalendarEvent(appt));
+                if (item is AppointmentItem appt)
+                {
+                    try
+                    {
+                        events.Add(MapToCalendarEvent(appt));
+                    }
+                    finally
+                    {
+                        ReleaseCom(appt);
+                    }
+                }
+                else
+                {
+                    ReleaseCom(item);
+                }
             }
+        }
+        finally
+        {
+            ReleaseCom(restricted);
+            ReleaseCom(items);
+            ReleaseCom(folder);
         }
 
         return Task.FromResult<IEnumerable<CalendarEvent>>(events);
@@ -91,39 +142,73 @@ public class OutlookCalendarBridge : ICalendarProvider, IDisposable
     public Task<CalendarEvent> CreateEventAsync(string accountId, string calendarId, CalendarEvent evt)
     {
         var folder = GetFolderByEntryId(calendarId);
-        var appt = (AppointmentItem)folder!.Items.Add(OlItemType.olAppointmentItem);
+        if (folder == null) throw new InvalidOperationException($"Calendar folder not found: {calendarId}");
 
-        MapToAppointment(evt, appt);
-        SetUserProperty(appt, PropGoogleEventId, evt.SourceId ?? evt.Id);
-        SetUserProperty(appt, PropAccountId, accountId);
-        SetUserProperty(appt, PropContentHash, ComputeHash(evt));
+        Items? items = null;
+        AppointmentItem? appt = null;
+        try
+        {
+            items = folder.Items;
+            appt = (AppointmentItem)items.Add(OlItemType.olAppointmentItem);
 
-        appt.Save();
+            MapToAppointment(evt, appt);
+            SetUserProperty(appt, PropGoogleEventId, evt.SourceId ?? evt.Id);
+            SetUserProperty(appt, PropAccountId, accountId);
+            SetUserProperty(appt, PropContentHash, ComputeHash(evt));
 
-        return Task.FromResult(evt with { Id = appt.EntryID });
+            appt.Save();
+            var entryId = appt.EntryID;
+            return Task.FromResult(evt with { Id = entryId });
+        }
+        finally
+        {
+            ReleaseCom(appt);
+            ReleaseCom(items);
+            ReleaseCom(folder);
+        }
     }
 
     public Task<CalendarEvent> UpdateEventAsync(string accountId, string calendarId, CalendarEvent evt)
     {
         var folder = GetFolderByEntryId(calendarId);
-        var appt = FindAppointmentByGoogleId(folder!, evt.SourceId ?? evt.Id);
+        if (folder == null) return Task.FromResult(evt);
 
-        if (appt != null)
+        AppointmentItem? appt = null;
+        try
         {
-            MapToAppointment(evt, appt);
-            SetUserProperty(appt, PropContentHash, ComputeHash(evt));
-            appt.Save();
+            appt = FindAppointmentByGoogleId(folder, evt.SourceId ?? evt.Id);
+            if (appt != null)
+            {
+                MapToAppointment(evt, appt);
+                SetUserProperty(appt, PropContentHash, ComputeHash(evt));
+                appt.Save();
+            }
+            return Task.FromResult(evt);
         }
-
-        return Task.FromResult(evt);
+        finally
+        {
+            ReleaseCom(appt);
+            ReleaseCom(folder);
+        }
     }
 
     public Task DeleteEventAsync(string accountId, string calendarId, string eventId)
     {
         var folder = GetFolderByEntryId(calendarId);
-        var appt = FindAppointmentByGoogleId(folder!, eventId);
-        appt?.Delete();
-        return Task.CompletedTask;
+        if (folder == null) return Task.CompletedTask;
+
+        AppointmentItem? appt = null;
+        try
+        {
+            appt = FindAppointmentByGoogleId(folder, eventId);
+            appt?.Delete();
+            return Task.CompletedTask;
+        }
+        finally
+        {
+            ReleaseCom(appt);
+            ReleaseCom(folder);
+        }
     }
 
     public Task<string?> GetSyncTokenAsync(string accountId, string calendarId) =>
@@ -131,21 +216,45 @@ public class OutlookCalendarBridge : ICalendarProvider, IDisposable
 
     private MAPIFolder? GetFolderByEntryId(string entryId)
     {
-        try { return _namespace!.GetFolderFromID(entryId); }
-        catch { return null; }
+        try
+        {
+            return _namespace!.GetFolderFromID(entryId);
+        }
+        catch (COMException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"GetFolderByEntryId failed for {entryId}: {ex.Message}");
+            return null;
+        }
     }
 
     private AppointmentItem? FindAppointmentByGoogleId(MAPIFolder folder, string googleEventId)
     {
-        foreach (object item in folder.Items)
+        Items? items = null;
+        try
         {
-            if (item is AppointmentItem appt)
+            items = folder.Items;
+            foreach (object item in items)
             {
-                var stored = GetUserProperty(appt, PropGoogleEventId);
-                if (stored == googleEventId) return appt;
+                if (item is AppointmentItem appt)
+                {
+                    var stored = GetUserProperty(appt, PropGoogleEventId);
+                    if (stored == googleEventId)
+                    {
+                        return appt; // Caller is responsible for releasing
+                    }
+                    ReleaseCom(appt);
+                }
+                else
+                {
+                    ReleaseCom(item);
+                }
             }
+            return null;
         }
-        return null;
+        finally
+        {
+            ReleaseCom(items);
+        }
     }
 
     private static CalendarEvent MapToCalendarEvent(AppointmentItem appt)
@@ -195,9 +304,38 @@ public class OutlookCalendarBridge : ICalendarProvider, IDisposable
 
     public void Dispose()
     {
+        foreach (var folder in _folderCache.Values)
+        {
+            ReleaseCom(folder);
+        }
         _folderCache.Clear();
-        _namespace = null;
-        _outlook?.Quit();
-        _outlook = null;
+
+        if (_namespace != null)
+        {
+            ReleaseCom(_namespace);
+            _namespace = null;
+        }
+
+        if (_outlook != null)
+        {
+            try { _outlook.Quit(); } catch { /* Ignore quit errors */ }
+            ReleaseCom(_outlook);
+            _outlook = null;
+        }
+
+        GC.SuppressFinalize(this);
+    }
+
+    private static void ReleaseCom(object? obj)
+    {
+        if (obj == null) return;
+        try
+        {
+            Marshal.ReleaseComObject(obj);
+        }
+        catch
+        {
+            // Ignore release errors
+        }
     }
 }

@@ -35,12 +35,28 @@ public class DpapiTokenStore : ITokenStore
         var filePath = GetFilePath(accountId);
         if (!File.Exists(filePath)) return null;
 
-        var encrypted = await File.ReadAllBytesAsync(filePath);
-        var decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
-        var json = Encoding.UTF8.GetString(decrypted);
-        var data = JsonSerializer.Deserialize<TokenData>(json);
+        try
+        {
+            var encrypted = await File.ReadAllBytesAsync(filePath);
+            var decrypted = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
+            var json = Encoding.UTF8.GetString(decrypted);
+            var data = JsonSerializer.Deserialize<TokenData>(json);
 
-        return data is null ? null : (data.AccessToken, data.RefreshToken, data.Expiry);
+            return data is null ? null : (data.AccessToken, data.RefreshToken, data.Expiry);
+        }
+        catch (CryptographicException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Token decryption failed for {accountId}: {ex.Message}");
+            // Token file is corrupted or from different user - delete and return null
+            try { File.Delete(filePath); } catch { /* Ignore delete errors */ }
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Token JSON parse failed for {accountId}: {ex.Message}");
+            try { File.Delete(filePath); } catch { /* Ignore delete errors */ }
+            return null;
+        }
     }
 
     public Task DeleteTokenAsync(string accountId)
